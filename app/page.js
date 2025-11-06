@@ -104,6 +104,18 @@ export default function UltimateFashionGeneratorExpanded() {
   const [filename, setFilename] = useState("");
   const [exifBlock, setExifBlock] = useState(null);
 
+  useEffect(() => {
+    return () => {
+      if (posePreview) URL.revokeObjectURL(posePreview);
+    };
+  }, [posePreview]);
+
+  useEffect(() => {
+    return () => {
+      if (wardrobePreview) URL.revokeObjectURL(wardrobePreview);
+    };
+  }, [wardrobePreview]);
+
   const realismEnhancements = {
     facialRealism: true,
     skinConsistency: true,
@@ -118,10 +130,16 @@ export default function UltimateFashionGeneratorExpanded() {
   };
 
   const handleSelect = (category, value) => setSelected((p) => ({ ...p, [category]: value }));
-  const onUpload = (f, setF, setPrev) => {
-    if (!f) return;
-    setF(f);
-    setPrev(URL.createObjectURL(f));
+  const onUpload = (file, setFile, setPrev, currentPreview) => {
+    if (currentPreview) URL.revokeObjectURL(currentPreview);
+    if (!file) {
+      setFile(null);
+      setPrev(null);
+      return;
+    }
+    setFile(file);
+    const url = URL.createObjectURL(file);
+    setPrev(url);
   };
 
   const serializePayload = (extra = {}) => {
@@ -406,7 +424,7 @@ export default function UltimateFashionGeneratorExpanded() {
                 <h2 className="text-lg font-medium mb-2">{label}</h2>
                 <label className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-600 text-white cursor-pointer">
                   <Upload size={18} /> Upload
-                  <input type="file" accept="image/*" className="hidden" onChange={(e) => onUpload(e.target.files?.[0] || null, set, setPrev)} />
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => onUpload(e.target.files?.[0] || null, set, setPrev, prev)} />
                 </label>
                 {prev && (
                   <div className="mt-4 border border-zinc-300 rounded-xl overflow-hidden w-full h-[300px]">
@@ -501,7 +519,7 @@ export default function UltimateFashionGeneratorExpanded() {
                 <h2 className="text-lg font-medium mb-2">{label}</h2>
                 <label className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-600 text-white cursor-pointer">
                   <Upload size={18} /> Upload
-                  <input type="file" accept="image/*" className="hidden" onChange={(e) => onUpload(e.target.files?.[0] || null, set, setPrev)} />
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => onUpload(e.target.files?.[0] || null, set, setPrev, prev)} />
                 </label>
                 {prev && (
                   <div className="mt-4 border border-zinc-300 rounded-xl overflow-hidden w-full h-[300px]">

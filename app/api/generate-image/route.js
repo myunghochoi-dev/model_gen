@@ -235,21 +235,24 @@ The resulting image must maintain visible optical imperfections and realistic ph
     // Get image dimensions to generate a matching noise overlay
     let imgSharp = sharp(buffer);
     const meta = await imgSharp.metadata();
-    const w = meta.width || 1024;
-    const h = meta.height || 1024;
+    const originalWidth = meta.width || 1024;
+    const originalHeight = meta.height || 1024;
 
     // Optional server-side crop to requested aspect ratio
-    if (targetRatio && w && h) {
+    if (targetRatio && originalWidth && originalHeight) {
       // Compute cover crop dimensions
-      const desiredW = Math.min(w, Math.round(h * targetRatio));
-      const desiredH = Math.min(h, Math.round(w / targetRatio));
+      const desiredW = Math.min(originalWidth, Math.round(originalHeight * targetRatio));
+      const desiredH = Math.min(originalHeight, Math.round(originalWidth / targetRatio));
       imgSharp = imgSharp.resize({ width: desiredW, height: desiredH, fit: "cover", position: "attention" });
     }
 
+    // Materialize the pipeline so we can safely derive the post-resize dimensions
+    const { data: preparedBuffer, info: preparedInfo } = await imgSharp.toBuffer({ resolveWithObject: true });
+    const W = preparedInfo.width || originalWidth;
+    const H = preparedInfo.height || originalHeight;
+    imgSharp = sharp(preparedBuffer);
+
     // Create a simple random-grain noise buffer (grayscale) and composite it
-    const meta2 = await imgSharp.metadata();
-    const W = meta2.width || w;
-    const H = meta2.height || h;
     const noiseRaw = Buffer.alloc(W * H);
     for (let i = 0; i < noiseRaw.length; i++) {
       // small gaussian-like distributed noise via uniform random (good enough here)
@@ -308,23 +311,23 @@ The resulting image must maintain visible optical imperfections and realistic ph
     // EXIF Block commands for user to apply locally if desired (JPEG true EXIF)
     const mac_linux_cmd = [
       "exiftool \\",
-      " -overwrite_original \\",
-      " -Make=\"Canon\" \\",
-      " -Model=\"EOS R5\" \\",
-      ` -LensModel=\"${lens}\" \\",`,
-      ` -FNumber=${aperture} \\",`,
-      " -ExposureTime=1/250 \\",
-      ` -ISO=${iso} \\",`,
-      " -ExposureProgram=\"Manual\" \\",
-      ` -WhiteBalance=\"Daylight (${wb})\" \\",`,
-      " -ColorSpace=\"sRGB\" \\",
-      " -ProfileDescription=\"sRGB IEC61966-2.1\" \\",
-      " -DateTimeOriginal=\"$(date '+%Y:%m:%d %H:%M:%S')\" \\",
-      " -Artist=\"Photo Model Render\" \\",
-      " -Copyright=\"© $(date +%Y) Photo Model Render\" \\",
-      ` -ImageDescription=\"${filmStock} simulation | ${caption}\" \\",`,
-      ` \"${filename}\"`,
-    ].join("");
+      "  -overwrite_original \\",
+      "  -Make=\"Canon\" \\",
+      "  -Model=\"EOS R5\" \\",
+      `  -LensModel=\"${lens}\" \\`,
+      `  -FNumber=${aperture} \\`,
+      "  -ExposureTime=1/250 \\",
+      `  -ISO=${iso} \\`,
+      "  -ExposureProgram=\"Manual\" \\",
+      `  -WhiteBalance=\"Daylight (${wb})\" \\`,
+      "  -ColorSpace=\"sRGB\" \\",
+      "  -ProfileDescription=\"sRGB IEC61966-2.1\" \\",
+      "  -DateTimeOriginal=\"$(date '+%Y:%m:%d %H:%M:%S')\" \\",
+      "  -Artist=\"Photo Model Render\" \\",
+      "  -Copyright=\"© $(date +%Y) Photo Model Render\" \\",
+      `  -ImageDescription=\"${filmStock} simulation | ${caption}\" \\`,
+      `  \"${filename}\"`,
+    ].join("\n");
 
     const windows_cmd = [
       "exiftool.exe ^\n",
