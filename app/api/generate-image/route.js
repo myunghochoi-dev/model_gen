@@ -94,6 +94,11 @@ function sanitizeName(s) {
 
 export async function POST(req) {
   try {
+    if (!process.env.OPENAI_API_KEY) {
+      console.error("OpenAI image generation requested without OPENAI_API_KEY configured.");
+      return NextResponse.json({ error: "Server configuration error: OpenAI API key is missing." }, { status: 500 });
+    }
+
     const formData = await req.formData();
     const payload = JSON.parse(formData.get("payload") || "{}");
     const poseRef = formData.get("poseRef");
@@ -200,7 +205,6 @@ The resulting image must maintain visible optical imperfections and realistic ph
     // NOTE: uploading binary reference images directly to the Images Generations
     // endpoint is not supported with a JSON body. For now we ignore attachments
     // (poseRef / wardrobeRef) and only use them for prompt guidance above.
-
     const res = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: {
@@ -210,7 +214,28 @@ The resulting image must maintain visible optical imperfections and realistic ph
       body: JSON.stringify(reqBody),
     });
 
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      const fallback = await res.text();
+      console.error("Failed to parse OpenAI response as JSON:", parseErr);
+      return NextResponse.json({ error: "Unexpected response from image provider.", details: process.env.DEBUG_IMAGE === "true" ? fallback : undefined }, { status: 502 });
+    }
+
+    if (!res.ok) {
+      const providerMessage = data?.error?.message || `Image provider returned status ${res.status}`;
+      console.error("OpenAI image generation failed:", res.status, data);
+      const status = res.status >= 400 && res.status < 600 ? res.status : 502;
+      return NextResponse.json(
+        {
+          error: providerMessage,
+          details: process.env.DEBUG_IMAGE === "true" ? data : undefined,
+        },
+        { status }
+      );
+    }
+
     const entry = data.data?.[0] || {};
     const imageUrl = entry.url;
     const b64 = entry.b64_json || entry.b64json || entry.b64;
